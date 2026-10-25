@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR Validation Studio</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+        body { font-family: 'Cairo', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        canvas { cursor: crosshair; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5); background-color: #1e293b; border-radius: 4px; }
+        .panel { background-color: #1e293b; border-left: 1px solid #334155; }
+        .input-dark { background-color: #0f172a; border: 1px solid #334155; color: #f8fafc; }
+        .input-dark:focus { border-color: #3b82f6; outline: none; box-shadow: 0 0 0 1px #3b82f6; }
+        .btn-primary { background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%); transition: all 0.2s; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
+        .btn-success { background: linear-gradient(135deg, #059669 0%, #047857 100%); transition: all 0.2s; }
+        .btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3); }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+    
+
+
+    <!-- Navbar -->
+    <header class="bg-[#1e293b] border-b border-[#334155] p-3 px-6 flex justify-between items-center z-20 shadow-sm shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg text-white"><i class="fa-solid fa-language text-xl"></i></div>
+            <div>
+                <h1 class="text-lg font-bold tracking-wide text-white">OCR Validation Studio</h1>
+                <p class="text-xs text-slate-400">Professional Data Annotation Interface</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <!-- Single File Mode -->
+            <div class="flex gap-4 items-center bg-[#0f172a] p-1.5 rounded-lg border border-[#334155]">
+                <div class="flex flex-col gap-1 px-2 border-l border-[#334155]">
+                    <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Image (.jpg/.png)</label>
+                    <input type="file" id="imgUpload" accept="image/png, image/jpeg" class="text-[10px] text-slate-300 w-40 cursor-pointer file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-slate-700 file:text-white hover:file:bg-slate-600">
+                </div>
+                <div class="flex flex-col gap-1 px-2">
+                    <label class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Data (.json)</label>
+                    <input type="file" id="jsonUpload" accept=".json" class="text-[10px] text-slate-300 w-40 cursor-pointer file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:bg-slate-700 file:text-white hover:file:bg-slate-600">
+                </div>
+                <button type="button" id="uploadBtn" onclick="triggerSingleUpload()" class="btn-primary px-3 py-1.5 rounded text-xs font-bold text-white flex items-center gap-1 shadow">
+                    رفع الملفين
+                </button>
+            </div>
+
+            <span class="text-slate-500 font-bold text-xs uppercase">أو</span>
+
+            <!-- Folder Mode -->
+            <div class="flex items-center bg-[#0f172a] p-1.5 rounded-lg border border-[#334155]">
+                <input type="file" id="folderUpload" webkitdirectory directory multiple class="hidden" onchange="handleFolderSelect(event)">
+                <button type="button" id="triggerFolderBtn" onclick="document.getElementById('folderUpload').value=''; document.getElementById('folderUpload').click()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded font-bold text-xs shadow-lg flex items-center gap-2 transition">
+                    <i class="fa-solid fa-folder-open text-sm"></i> رفع فولدر (Delivery)
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <div class="flex-1 flex overflow-hidden">
+        
+        <!-- Right Sidebar -->
+        <div class="w-[350px] panel flex flex-col z-20 shadow-2xl border-l border-[#334155] shrink-0">
+            <div class="p-5 border-b border-[#334155]">
+                <div class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-3">Navigation (التنقل)</div>
+                <div class="flex justify-between items-center bg-[#0f172a] p-1 rounded-lg border border-[#334155]">
+                    <button type="button" onclick="selectItem(currentIdx - 1)" class="w-10 h-10 rounded-md hover:bg-[#334155] text-slate-300 transition flex items-center justify-center disabled:opacity-50"><i class="fa-solid fa-chevron-right"></i></button>
+                    <div class="flex flex-col items-center">
+                        <div class="flex items-center gap-1">
+                            <input type="number" id="gotoInput" class="w-14 bg-transparent text-center text-sm font-bold text-white border-b border-slate-500 focus:border-blue-500 outline-none" placeholder="-" onchange="selectItem(parseInt(this.value) - 1)">
+                            <span class="text-sm font-bold text-white" id="totalItemsCount">/ --</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500">العنصر الحالي</span>
+                    </div>
+                    <button type="button" onclick="selectItem(currentIdx + 1)" class="w-10 h-10 rounded-md hover:bg-[#334155] text-slate-300 transition flex items-center justify-center disabled:opacity-50"><i class="fa-solid fa-chevron-left"></i></button>
+                </div>
+            </div>
+
+            <div class="p-4 border-b border-[#334155] bg-[#0f172a] flex flex-col items-center justify-center relative">
+                <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest w-full text-left mb-2 flex items-center gap-1">
+                    <i class="fa-solid fa-crop-simple"></i> Crop Focus
+                </div>
+                <div class="w-full bg-[#1e293b] border border-[#334155] rounded-lg p-2 min-h-[80px] flex items-center justify-center overflow-hidden shadow-inner">
+                    <canvas id="cropCanvas" class="max-w-full max-h-24 rounded border border-[#475569]/50"></canvas>
+                </div>
+            </div>
+
+            <div class="p-5 flex-1 flex flex-col justify-start">
+                <div class="flex justify-between items-end mb-2">
+                    <label class="text-xs text-slate-400 font-bold uppercase tracking-wider">Transcription</label>
+                    <span class="text-[10px] bg-[#334155] text-slate-300 px-2 py-0.5 rounded">Live memory</span>
+                </div>
+                <textarea id="textEditor" rows="2" class="w-full p-4 rounded-lg input-dark text-xl resize-none leading-relaxed transition-all shadow-inner overflow-hidden min-h-[80px]" dir="rtl" placeholder="حدد عنصراً للبدء..."></textarea>
+            </div>
+        </div>
+
+        <!-- Center Canvas Area -->
+        <div class="flex-1 bg-[#0f172a] flex flex-col relative min-w-0">
+            <div class="h-12 border-b border-[#334155] bg-[#1e293b] flex items-center justify-between px-4 z-10 shadow-sm">
+                <div class="flex gap-2 items-center">
+                    <button type="button" onclick="scale = Math.min(scale + 0.1, 3.0); applyZoom();" class="w-8 h-8 rounded bg-[#334155] hover:bg-[#475569] text-slate-200 transition flex items-center justify-center"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                    <span id="zoomLevel" class="text-xs text-slate-300 font-bold w-12 text-center">100%</span>
+                    <button type="button" onclick="scale = Math.max(scale - 0.1, 0.1); applyZoom();" class="w-8 h-8 rounded bg-[#334155] hover:bg-[#475569] text-slate-200 transition flex items-center justify-center"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                    <button type="button" onclick="fitToScreen();" class="w-8 h-8 rounded bg-[#334155] hover:bg-[#475569] text-slate-200 transition flex items-center justify-center"><i class="fa-solid fa-expand"></i></button>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-4 border-r border-[#334155] pr-4 text-[10px]">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-slate-400 font-bold uppercase tracking-wider">Unit</label>
+                            <select id="unitSelect" onchange="unitChanged()" class="bg-[#0f172a] text-slate-300 border border-[#334155] rounded py-0.5 px-2 outline-none cursor-pointer">
+                                <option value="lines">Lines</option>
+                                <option value="words">Words</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-slate-400 font-bold uppercase tracking-wider">Boxes</label>
+                            <select id="boxesSelect" onchange="drawCanvas()" class="bg-[#0f172a] text-slate-300 border border-[#334155] rounded py-0.5 px-2 outline-none cursor-pointer">
+                                <option value="all">All</option>
+                                <option value="selected">Selected only</option>
+                                <option value="none">None</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-col gap-1">
+                            <label class="text-slate-400 font-bold uppercase tracking-wider">Text</label>
+                            <select id="textSelect" onchange="drawCanvas()" class="bg-[#0f172a] text-slate-300 border border-[#334155] rounded py-0.5 px-2 outline-none cursor-pointer">
+                                <option value="off">Off</option>
+                                <option value="selected">Selected</option>
+                                <option value="all">All boxes</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 border-r border-[#334155] pr-4">
+                        <label class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">تعتيم</label>
+                        <input type="range" id="dimSlider" min="0" max="0.9" step="0.1" value="0.7" oninput="drawCanvas()" class="w-20 cursor-pointer accent-blue-500">
+                    </div>
+                    <button type="button" onclick="document.getElementById('leftSidebar').classList.toggle('hidden')" class="w-8 h-8 rounded bg-[#334155] hover:bg-blue-600 text-white transition flex items-center justify-center ml-2">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-auto relative" id="canvasContainer">
+                <!-- شاشة تتبع الأخطاء وحالة الرفع المرئية -->
+                <div id="uploadHint" class="absolute inset-0 flex flex-col items-center justify-center text-slate-500 bg-[#0f172a] z-0 transition-opacity duration-300 p-8 text-center">
+                    <div class="w-32 h-32 mb-4 opacity-20 bg-slate-700 rounded-full flex items-center justify-center"><i class="fa-solid fa-image text-6xl text-slate-300"></i></div>
+                    <h2 class="text-xl font-bold text-slate-400 mb-2">مساحة العمل فارغة</h2>
+                    <p>استخدم الأزرار بالأعلى لرفع الملفات.</p>
+                </div>
+                <div class="w-max h-max min-w-full min-h-full flex items-center justify-center p-8">
+                    <canvas id="imgCanvas" class="shadow-2xl relative z-10" style="display:none;"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Left Sidebar -->
+        <div id="leftSidebar" class="w-72 bg-[#1e293b] flex flex-col z-20 shadow-2xl border-r border-[#334155] shrink-0 transition-all duration-300 overflow-hidden hidden">
+            <div class="p-5 border-b border-[#334155] flex-1 flex flex-col hidden bg-[#111827] overflow-hidden min-h-0" id="fileExplorerPanel">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="text-[10px] text-slate-400 font-bold uppercase tracking-widest"><i class="fa-solid fa-folder-tree mr-1"></i> Files Explorer</div>
+                    <span id="fileCountBadge" class="bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">0</span>
+                </div>
+                <div class="flex flex-col gap-2 mb-4 shrink-0">
+                    <div class="relative">
+                        <i class="fa-solid fa-filter absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+                        <input type="text" id="issueFilter" placeholder="بحث..." oninput="renderFileList()" class="w-full bg-[#1e293b] border border-[#334155] rounded-md py-2 pl-8 pr-3 text-xs text-white focus:outline-none focus:border-blue-500 transition shadow-inner" dir="rtl">
+                    </div>
+                </div>
+                <div id="fileList" class="flex-1 overflow-y-auto pr-2 custom-scrollbar"></div>
+            </div>
+            <div class="p-5 shrink-0">
+                <div class="text-xs text-slate-400 font-bold uppercase tracking-wider mb-3">Export & Sync (الحفظ)</div>
+                <div class="flex flex-col gap-4 mt-6">
+                    <div>
+                        <label class="text-xs text-slate-400 font-bold mb-2 block">Local Delivery Path</label>
+                        <input type="text" id="saveDir" placeholder="F:\Projects\Delivery_Folder" class="w-full p-2.5 rounded text-sm input-dark text-slate-300" dir="ltr">
+                    </div>
+                    <button type="button" onclick="saveData()" id="saveBtn" class="btn-success w-full py-4 rounded-lg font-bold text-white shadow-lg flex justify-center items-center gap-2 mt-4">
+                        <i class="fa-solid fa-floppy-disk text-lg"></i> حفظ المزامنة
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            document.body.innerHTML = `<div style="padding: 40px; background: #7f1d1d; color: white; font-family: sans-serif; height: 100vh; text-align: left;" dir="ltr">
+                <h1 style="font-size: 2rem; font-weight: bold; margin-bottom: 20px;">CRITICAL JAVASCRIPT ERROR</h1>
+                <p style="font-size: 1.2rem; margin-bottom: 10px;">${message}</p>
+                <p style="margin-bottom: 10px;">Line: ${lineno}:${colno}</p>
+                <pre style="background: #450a0a; padding: 20px; border-radius: 8px; overflow: auto;">${error ? error.stack : ''}</pre>
+                <p style="margin-top: 20px; font-size: 1.2rem;">Please take a screenshot of this red screen and send it to the AI.</p>
+            </div>`;
+        };
+        window.onunhandledrejection = function(event) {
+            document.body.innerHTML = `<div style="padding: 40px; background: #7f1d1d; color: white; font-family: sans-serif; height: 100vh; text-align: left;" dir="ltr">
+                <h1 style="font-size: 2rem; font-weight: bold; margin-bottom: 20px;">PROMISE REJECTION (ASYNC ERROR)</h1>
+                <p style="font-size: 1.2rem; margin-bottom: 10px;">${event.reason}</p>
+                <p style="margin-top: 20px; font-size: 1.2rem;">Please take a screenshot of this red screen and send it to the AI.</p>
+            </div>`;
+        };
+
+        let linesData = [];
+        let allWordsData = []; 
+        let originalJson = null;
+        let filename = "";
+        let currentImgFile = null;
+        let currentIdx = -1;
+        let imgObj = new Image();
+        let scale = 1.0; 
+        let folderPairs = [];
+        let currentPairIndex = -1;
+
+        // استعادة المسار المحفوظ
+        window.onload = () => {
+            const savedPath = localStorage.getItem('lastSaveDir');
+            if(savedPath && document.getElementById('saveDir')) {
+                document.getElementById('saveDir').value = savedPath;
+            }
+        };
+
+        // دالة عرض الأخطاء أو الحالة في منتصف الشاشة (تتبع مرئي)
+        function showScreenStatus(iconHTML, title, msg, isError = false) {
+            const hint = document.getElementById('uploadHint');
+            const colorClass = isError ? 'text-red-500' : 'text-blue-500';
+            const titleColor = isError ? 'text-red-400' : 'text-slate-300';
+            
+            hint.innerHTML = `
+                <div class="${colorClass} text-6xl mb-4">${iconHTML}</div>
+                <h2 class="text-2xl font-bold ${titleColor} mb-2">${title}</h2>
+                <p class="text-sm text-slate-300 bg-slate-800 p-4 rounded max-w-lg text-center leading-loose" dir="rtl">${msg}</p>
+            `;
+            hint.style.display = 'flex';
+            hint.style.opacity = '1';
+            document.getElementById('imgCanvas').style.display = 'none';
+        }
+
+        function triggerSingleUpload() {
+            const jsonFile = document.getElementById('jsonUpload').files[0];
+            const imgFile = document.getElementById('imgUpload').files[0];
+            if(!jsonFile || !imgFile) {
+                showScreenStatus('<i class="fa-solid fa-circle-exclamation"></i>', 'ملفات ناقصة', 'الرجاء اختيار ملف الصورة وملف الـ JSON معاً من الأزرار بالأعلى.', true);
+                return;
+            }
+            currentPairIndex = -1;
+            document.getElementById('fileExplorerPanel').classList.add('hidden');
+            processUpload(jsonFile, imgFile, document.getElementById('uploadBtn'));
+        }
+
+        function handleFolderSelect(e) {
+    try {
+        const files = Array.from(e.target.files);
+        if (files.length === 0) {
+            alert('لم يتم اختيار أي ملفات!');
+            showScreenStatus('<i class="fa-solid fa-folder-open"></i>', 'مجلد فارغ', 'لم تقم باختيار مجلد، أو المجلد لا يحتوي على ملفات.', true);
+            return;
+        }
+
+        const jsons = files.filter(f => f.name.toLowerCase().endsWith('.json'));
+        const images = files.filter(f => f.name.match(/\.(jpg|jpeg|png|webp)$/i));
+
+        if (jsons.length === 0 || images.length === 0) {
+            alert(`تنبيه: الفولدر المختار يحتوي على ${files.length} ملف، منها ${jsons.length} JSON و ${images.length} صورة.\nيرجى التأكد من اختيار فولدر صحيح يحتوي على ملفات JSON والصور معاً.`);
+            showScreenStatus('<i class="fa-solid fa-file-circle-xmark"></i>', 'ملفات غير مكتملة', `الفولدر المختار يضم ${files.length} ملف، لكنه لا يحتوي على (صورة + JSON معاً) للعمل.`, true);
+            return;
+        }
+
+        folderPairs = [];
+        jsons.forEach(jsonFile => {
+            let baseName = jsonFile.name.replace(/\.[^/.]+$/, '');
+            let matchedImg = images.find(img => img.name.replace(/\.[^/.]+$/, '') === baseName) || 
+                             images.find(img => baseName.includes(img.name.replace(/\.[^/.]+$/, '')) || img.name.replace(/\.[^/.]+$/, '').includes(baseName));
+            if(matchedImg) folderPairs.push({ json: jsonFile, image: matchedImg, name: baseName });
+        });
+
+        if(folderPairs.length === 0) {
+            alert(`تم العثور على ${jsons.length} ملف JSON و ${images.length} صورة، ولكن لا توجد أسماء متطابقة لربطها!`);
+            showScreenStatus('<i class="fa-solid fa-link-slash"></i>', 'فشل الربط', 'تعذر ربط ملفات JSON بالصور المقابلة لها. تأكد من تطابق الأسماء!', true);
+            return;
+        }
+
+        folderPairs.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+        document.getElementById('leftSidebar').classList.remove('hidden');
+        document.getElementById('fileExplorerPanel').classList.remove('hidden');
+        
+        currentPairIndex = 0;
+        renderFileList();
+        
+        // TEST ALERT TO CONFIRM IT REACHED PROCESS UPLOAD!
+        console.log(`تم تجهيز ${folderPairs.length} زوج من الملفات للرفع!`);
+        
+        processUpload(folderPairs[0].json, folderPairs[0].image, document.getElementById('triggerFolderBtn'));
+    } catch (err) {
+        alert('JS Crash in handleFolderSelect: ' + err.message);
+    }
+}
+
+
+        async function processUpload(jsonFile, imgFile, btnElem) {
+            // إظهار حالة التحميل للمستخدم لتأكيد أن الزر يعمل
+            showScreenStatus('<i class="fa-solid fa-circle-notch fa-spin"></i>', 'جاري الاتصال بالسيرفر...', 'نقوم الآن بإرسال الملفات إلى الباك-إند لمعالجتها، يرجى الانتظار...');
+            
+            const formData = new FormData();
+            formData.append("json_file", jsonFile);
+            formData.append("image", imgFile);
+
+            const origHTML = btnElem.innerHTML;
+            btnElem.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> جاري التحميل...`;
+            btnElem.disabled = true;
+            
+            try {
+                // محاولة الاتصال بالباك-إند
+                const res = await fetch("/upload", { method: "POST", body: formData });
+                
+                let data;
+                try {
+                    data = await res.json();
+                } catch(e) {
+                    throw new Error("السيرفر (FastAPI) أرجع خطأ داخلي (Internal Server Error). تأكد من شاشة الـ Terminal الخاصة بالبايثون لرؤية تفاصيل الخطأ.");
+                }
+                
+                if (!res.ok) {
+                    throw new Error(data.detail || "السيرفر رفض الطلب لسبب غير معروف.");
+                }
+
+                currentIdx = -1; 
+                document.getElementById('textEditor').value = "";
+                originalJson = data.original_json;
+                linesData = data.lines || [];
+                buildWordsList();
+                filename = data.filename; 
+                currentImgFile = imgFile;
+
+                imgObj.onload = () => {
+                    try {
+                        const canvas = document.getElementById('imgCanvas');
+                        canvas.width = imgObj.width; canvas.height = imgObj.height;
+                        canvas.style.display = 'block';
+                        fitToScreen();
+                        
+                        let activeList = document.getElementById('unitSelect').value === 'lines' ? linesData : allWordsData;
+                        if (activeList.length > 0) {
+                            selectItem(0);
+                        } else {
+                            drawCanvas();
+                            alert("تنبيه: الصورة لا تحتوي على أي سطور نصية أو أن هيكل الـ JSON غير متوافق.");
+                        }
+                        document.getElementById('uploadHint').style.display = 'none';
+                    } catch (err) {
+                        showScreenStatus('<i class="fa-solid fa-bug"></i>', 'خطأ برمجي أثناء الرسم', err.message, true);
+                    }
+                };
+
+                imgObj.onerror = () => {
+                    showScreenStatus('<i class="fa-solid fa-image-slash"></i>', 'فشل قراءة الصورة', 'المتصفح لم يتمكن من عرض الصورة. قد يكون الملف تالفاً أو أن صيغته غير مدعومة (مثلاً ملف PDF تم تغيير امتداده).', true);
+                };
+                
+                if (imgObj.src && imgObj.src.startsWith('blob:')) {
+                    URL.revokeObjectURL(imgObj.src); // Free old memory
+                }
+                if (imgFile) imgObj.src = URL.createObjectURL(imgFile);
+
+            } catch (e) {
+                showScreenStatus('<i class="fa-solid fa-triangle-exclamation"></i>', 'فشل الرفع!', `${e.message}<br><br><b>ملاحظة:</b> إذا لم يكن السيرفر يستجيب، تأكد من تشغيله بصورة صحيحة.`, true);
+            }
+
+            btnElem.innerHTML = origHTML; 
+            btnElem.disabled = false;
+        }
+
+        // --- باقي الدوال (الرسم والتنقل) بدون تغيير ---
+        function getPts(obj) {
+            if (!obj) return null;
+            let c = obj.coordinates || obj.line_coordinates;
+            if (!c) return null;
+            if (c.upper_left && c.bottom_right) return [ {x: c.upper_left.x, y: c.upper_left.y}, {x: c.bottom_right.x, y: c.upper_left.y}, {x: c.bottom_right.x, y: c.bottom_right.y}, {x: c.upper_left.x, y: c.bottom_right.y} ];
+            else if (c.top_left && c.bottom_right) return [ {x: c.top_left[0], y: c.top_left[1]}, {x: c.top_right[0], y: c.top_right[1]}, {x: c.bottom_right[0], y: c.bottom_right[1]}, {x: c.bottom_left[0], y: c.bottom_left[1]} ];
+            else if (Array.isArray(c)) {
+                if (c.length >= 8) return [{x: c[0], y: c[1]}, {x: c[2], y: c[3]}, {x: c[4], y: c[5]}, {x: c[6], y: c[7]}];
+                if (c.length === 4 && typeof c[0] === 'object') return [{x: c[0].x||c[0][0], y: c[0].y||c[0][1]}, {x: c[1].x||c[1][0], y: c[1].y||c[1][1]}, {x: c[2].x||c[2][0], y: c[2].y||c[2][1]}, {x: c[3].x||c[3][0], y: c[3].y||c[3][1]}];
+            } else if (typeof c === 'string') {
+                let p = c.split(',').map(Number);
+                if (p.length >= 8) return [{x: p[0], y: p[1]}, {x: p[2], y: p[3]}, {x: p[4], y: p[5]}, {x: p[6], y: p[7]}];
+            }
+            return null;
+        }
+
+        function updateCropView(pts) {
+            if (!pts || !imgObj.src) return;
+            const cropCanvas = document.getElementById('cropCanvas');
+            const cropCtx = cropCanvas.getContext('2d');
+            let x_min = Math.min(...pts.map(p=>p.x)), x_max = Math.max(...pts.map(p=>p.x));
+            let y_min = Math.min(...pts.map(p=>p.y)), y_max = Math.max(...pts.map(p=>p.y));
+            let pad = 20;
+            x_min = Math.max(0, x_min - pad); y_min = Math.max(0, y_min - pad);
+            x_max = Math.min(imgObj.width, x_max + pad); y_max = Math.min(imgObj.height, y_max + pad);
+            let w = x_max - x_min, h = y_max - y_min;
+            if(w <= 0 || h <= 0) return;
+            cropCanvas.width = w; cropCanvas.height = h;
+            cropCtx.clearRect(0, 0, w, h);
+            cropCtx.drawImage(imgObj, x_min, y_min, w, h, 0, 0, w, h);
+        }
+
+        function applyZoom() {
+            const canvas = document.getElementById('imgCanvas');
+            canvas.style.width = (imgObj.width * scale) + 'px';
+            canvas.style.height = (imgObj.height * scale) + 'px';
+            let zoomLabel = document.getElementById('zoomLevel');
+            if(zoomLabel) zoomLabel.innerText = Math.round(scale * 100) + '%';
+        }
+        
+        function fitToScreen() {
+            if(!imgObj.src) return;
+            const container = document.getElementById('canvasContainer');
+            const scaleX = (container.clientWidth - 40) / imgObj.width;
+            const scaleY = (container.clientHeight - 40) / imgObj.height;
+            scale = Math.floor(Math.min(scaleX, scaleY, 1.0) * 100) / 100;
+            if (scale <= 0) scale = 0.1;
+            applyZoom();
+        }
+
+        function drawCanvas() {
+            if (!imgObj.src) return;
+            const canvas = document.getElementById('imgCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(imgObj, 0, 0);
+
+            let unitMode = document.getElementById('unitSelect').value;
+            let boxMode = document.getElementById('boxesSelect').value;
+            let textMode = document.getElementById('textSelect').value;
+            let activeList = unitMode === 'lines' ? linesData : allWordsData;
+
+            if (boxMode === 'all') {
+                ctx.lineWidth = 1.5;
+                activeList.forEach((item, idx) => {
+                    if (idx === currentIdx) return; 
+                    let pts = getPts(unitMode === 'lines' ? item : item.ref);
+                    if (pts) {
+                        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+                        for(let i=1; i<4; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                        ctx.closePath();
+                        ctx.strokeStyle = unitMode === 'lines' ? "rgba(59, 130, 246, 0.6)" : "rgba(217, 119, 6, 0.6)"; 
+                        ctx.fillStyle = unitMode === 'lines' ? "rgba(59, 130, 246, 0.1)" : "rgba(217, 119, 6, 0.1)";
+                        ctx.fill(); ctx.stroke();
+                    }
+                });
+            }
+
+            ctx.fillStyle = `rgba(15, 23, 42, ${document.getElementById('dimSlider').value})`; 
+            if (currentIdx >= 0 && currentIdx < activeList.length && boxMode !== 'none') {
+                let pts = getPts(unitMode === 'lines' ? activeList[currentIdx] : activeList[currentIdx].ref);
+                if (pts) {
+                    ctx.beginPath(); ctx.rect(0, 0, canvas.width, canvas.height);
+                    ctx.moveTo(pts[0].x, pts[0].y);
+                    for(let i=1; i<4; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                    ctx.closePath(); ctx.fill('evenodd'); 
+                    ctx.lineWidth = 3; ctx.strokeStyle = "#10b981"; 
+                    ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+                    for(let i=1; i<4; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                    ctx.closePath(); ctx.stroke();
+                }
+            } else { ctx.fillRect(0, 0, canvas.width, canvas.height); }
+
+            if (textMode !== 'off') {
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.direction = 'rtl'; 
+                activeList.forEach((item, idx) => {
+                    if (textMode === 'selected' && idx !== currentIdx) return;
+                    let pts = getPts(unitMode === 'lines' ? item : item.ref);
+                    let txt = (unitMode === 'lines' ? item.text : item.ref.text) || '';
+                    if (pts && txt.trim() !== '') {
+                        let x_min = Math.min(...pts.map(p=>p.x)), x_max = Math.max(...pts.map(p=>p.x));
+                        let y_min = Math.min(...pts.map(p=>p.y)), y_max = Math.max(...pts.map(p=>p.y));
+                        let boxW = x_max - x_min;
+                        let boxH = y_max - y_min;
+                        let centerX = x_min + boxW / 2;
+                        let centerY = y_min + boxH / 2;
+                        
+                        if (idx === currentIdx) {
+                            ctx.fillStyle = 'rgba(16, 185, 129, 0.95)';
+                        } else if (textMode === 'all') {
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+                        } else {
+                            ctx.fillStyle = 'rgba(15, 23, 42, 0.90)';
+                        }
+                        
+                        ctx.beginPath();
+                        ctx.moveTo(pts[0].x, pts[0].y);
+                        for(let i=1; i<4; i++) ctx.lineTo(pts[i].x, pts[i].y);
+                        ctx.closePath();
+                        ctx.fill();
+                        
+                        if (idx === currentIdx) {
+                            ctx.fillStyle = '#ffffff';
+                        } else if (textMode === 'all') {
+                            ctx.fillStyle = '#000000';
+                        } else {
+                            ctx.fillStyle = '#fbbf24';
+                        }
+                        
+                        let fontSize = Math.max(10, boxH * 0.7);
+                        ctx.font = `bold ${fontSize}px "Cairo", sans-serif`;
+                        let textWidth = ctx.measureText(txt).width;
+                        if (textWidth > boxW * 0.95 && boxW > 0) {
+                            fontSize = fontSize * (boxW * 0.95) / textWidth;
+                            ctx.font = `bold ${fontSize}px "Cairo", sans-serif`;
+                        }
+                        
+                        ctx.fillText(txt, centerX, centerY);
+                    }
+                });
+            }
+
+            // Draw Index Numbers
+            activeList.forEach((item, idx) => {
+                if (boxMode === 'selected' && idx !== currentIdx) return;
+                if (boxMode === 'none' && idx !== currentIdx) return;
+
+                let pts = getPts(unitMode === 'lines' ? item : item.ref);
+                if (pts) {
+                    let x_min = Math.min(...pts.map(p=>p.x));
+                    let y_min = Math.min(...pts.map(p=>p.y));
+                    let y_max = Math.max(...pts.map(p=>p.y));
+                    let centerY = y_min + (y_max - y_min) / 2;
+                    let numX = x_min - 14; 
+                    
+                    ctx.beginPath();
+                    ctx.arc(numX, centerY, 11, 0, 2 * Math.PI);
+                    ctx.fillStyle = (idx === currentIdx) ? '#ef4444' : '#3b82f6';
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 10px sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(idx + 1, numX, centerY);
+                }
+            });
+        }
+
+        function selectItem(idx) {
+            let unitMode = document.getElementById('unitSelect').value;
+            let activeList = unitMode === 'lines' ? linesData : allWordsData;
+            
+            // Allow wrapping around or limit to bounds
+            if (idx < 0) idx = activeList.length - 1;
+            if (idx >= activeList.length) idx = 0;
+            if (activeList.length === 0) return;
+            
+            currentIdx = idx;
+            document.getElementById('gotoInput').value = currentIdx + 1;
+            document.getElementById('totalItemsCount').innerText = `/ ${activeList.length}`;
+            
+            let item = activeList[currentIdx];
+            const textEditor = document.getElementById('textEditor');
+            textEditor.value = unitMode === 'lines' ? item.text : item.ref.text;
+            textEditor.style.height = 'auto'; textEditor.style.height = textEditor.scrollHeight + 'px';
+            
+            drawCanvas();
+            let pts = getPts(unitMode === 'lines' ? item : item.ref);
+            if(pts) {
+                updateCropView(pts);
+                const container = document.getElementById('canvasContainer');
+                const targetY = (pts[0].y * scale) - (container.clientHeight / 2);
+                const targetX = (pts[0].x * scale) - (container.clientWidth / 2);
+                container.scrollTo({ top: Math.max(0, targetY), left: Math.max(0, targetX), behavior: 'smooth' });
+            }
+        }
+
+        function buildWordsList() {
+            allWordsData = [];
+            if(!linesData) return;
+            linesData.forEach((line, lIdx) => {
+                if(line.words && line.words.length > 0) {
+                    line.words.forEach((w, wIdx) => { allWordsData.push({ lineIdx: lIdx, wordIdx: wIdx, ref: w }); });
+                } else {
+                    allWordsData.push({ lineIdx: lIdx, wordIdx: 0, ref: { text: line.text, coordinates: line.coordinates || line.line_coordinates, isVirtual: true } });
+                }
+            });
+        }
+
+        function renderFileList() {
+            const list = document.getElementById('fileList');
+            list.innerHTML = '';
+            const issueText = document.getElementById('issueFilter').value.toLowerCase();
+            let filteredPairs = folderPairs.filter(pair => (!issueText || pair.name.toLowerCase().includes(issueText)));
+            
+            document.getElementById('fileCountBadge').innerText = filteredPairs.length;
+            filteredPairs.forEach((pair) => {
+                const idx = folderPairs.indexOf(pair);
+                const isActive = (idx === currentPairIndex);
+                const div = document.createElement('div');
+                div.className = `group flex items-center justify-between p-2.5 rounded-lg cursor-pointer mb-1.5 transition-all duration-200 border ${isActive ? 'bg-blue-600 border-blue-500 shadow-md' : 'bg-[#1e293b] border-transparent hover:bg-[#334155] hover:border-[#475569]'}`;
+                div.innerHTML = `<div class="flex items-center gap-3 overflow-hidden" dir="ltr"><div class="shrink-0 w-7 h-7 rounded-md flex items-center justify-center ${isActive ? 'bg-white/20 text-white' : 'bg-[#0f172a] text-slate-400 group-hover:text-blue-400'}"><i class="fa-solid fa-file-code text-xs"></i></div><div class="flex flex-col truncate"><span class="text-xs font-semibold truncate ${isActive ? 'text-white' : 'text-slate-300'}">${pair.name}</span><span class="text-[9px] truncate ${isActive ? 'text-blue-200' : 'text-slate-500'}">JSON + Image</span></div></div>${isActive ? '<div class="shrink-0 w-2 h-2 rounded-full bg-white shadow animate-pulse ml-2"></div>' : ''}`;
+                div.onclick = () => { currentPairIndex = idx; renderFileList(); processUpload(folderPairs[idx].json, folderPairs[idx].image, document.getElementById('triggerFolderBtn')); };
+                list.appendChild(div);
+            });
+        }
+
+        function unitChanged() {
+            let activeList = document.getElementById('unitSelect').value === 'lines' ? linesData : allWordsData;
+            if(activeList.length > 0) selectItem(0);
+        }
+
+        async function saveData() {
+            const saveDir = document.getElementById('saveDir').value;
+            if(!saveDir) return alert("الرجاء كتابة مسار الفولدر للحفظ.");
+            localStorage.setItem('lastSaveDir', saveDir);
+
+            const btn = document.getElementById('saveBtn');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> جاري المعالجة...`;
+            btn.disabled = true;
+
+            const formData = new FormData();
+            formData.append("filename", filename);
+            formData.append("original_json", JSON.stringify(originalJson));
+            formData.append("lines_json", JSON.stringify(linesData));
+            formData.append("save_dir", saveDir);
+            if (currentImgFile) {
+                formData.append("image", currentImgFile);
+            }
+
+            try {
+                const res = await fetch("/save", { method: "POST", body: formData });
+                const data = await res.json();
+                if (res.ok) alert("تم الحفظ بنجاح!");
+                else alert("فشل الحفظ: " + data.detail);
+            } catch (e) { alert("خطأ في الاتصال: " + e.message); }
+            
+            btn.innerHTML = originalContent; btn.disabled = false;
+        }
+
+        document.getElementById('textEditor').addEventListener('input', (e) => {
+            let unitMode = document.getElementById('unitSelect').value;
+            let activeList = unitMode === 'lines' ? linesData : allWordsData;
+            if(currentIdx < 0 || currentIdx >= activeList.length) return;
+            
+            let val = e.target.value;
+            if (unitMode === 'lines') linesData[currentIdx].text = val;
+            else {
+                let wItem = allWordsData[currentIdx];
+                wItem.ref.text = val;
+                let parentLine = linesData[wItem.lineIdx];
+                if(wItem.ref.isVirtual) parentLine.text = val;
+                else parentLine.text = parentLine.words.map(w => w.text).join(' ');
+            }
+            e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px';
+            if (document.getElementById('textSelect').value !== 'off') drawCanvas(); 
+        });
+
+        document.getElementById('imgCanvas').addEventListener('mousedown', (e) => {
+            const canvas = document.getElementById('imgCanvas');
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+            let unitMode = document.getElementById('unitSelect').value;
+            let activeList = unitMode === 'lines' ? linesData : allWordsData;
+
+            for (let i=0; i<activeList.length; i++) {
+                let pts = getPts(unitMode === 'lines' ? activeList[i] : activeList[i].ref);
+                if (pts && x >= pts[0].x && x <= pts[1].x && y >= pts[0].y && y <= pts[2].y) { selectItem(i); break; }
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (document.activeElement !== document.getElementById('textEditor') || e.altKey) {
+                if (e.key === "ArrowDown" || e.key === "ArrowLeft") { selectItem(currentIdx + 1); e.preventDefault(); }
+                if (e.key === "ArrowUp" || e.key === "ArrowRight") { selectItem(currentIdx - 1); e.preventDefault(); }
+            }
+        });
+    </script>
+</body>
+</html>

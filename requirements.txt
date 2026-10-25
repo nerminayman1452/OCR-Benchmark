@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+python-multipart
+opencv-python
+numpy
+Pillow
+reportlab
+arabic-reshaper
+python-bidi
+pypdf
